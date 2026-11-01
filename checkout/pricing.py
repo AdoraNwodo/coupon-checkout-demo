@@ -7,15 +7,18 @@ Coupons come from the promotions service as plain dicts, for example
 Expiry dates are stored in the promotions service's display format (DD/MM/YYYY).
 """
 
-from datetime import date
+from datetime import date, datetime
 
 
 class CouponError(ValueError):
     """Raised when a coupon cannot be applied to an order."""
 
 
-def _today_str(today: date) -> str:
-    return today.strftime("%d/%m/%Y")
+def _parse_expiry(value: str) -> date:
+    try:
+        return datetime.strptime(value, "%d/%m/%Y").date()
+    except (TypeError, ValueError):
+        raise CouponError(f"invalid expiry date {value!r}") from None
 
 
 def apply_coupon(subtotal_cents: int, coupon: dict, today: date) -> int:
@@ -28,7 +31,8 @@ def apply_coupon(subtotal_cents: int, coupon: dict, today: date) -> int:
         raise CouponError(f"invalid discount on coupon {coupon.get('code')}")
 
     # Reject coupons that have already expired.
-    if coupon["expires"] < _today_str(today):
+    # A coupon is valid through its expiry date (inclusive).
+    if _parse_expiry(coupon["expires"]) < today:
         raise CouponError(f"coupon {coupon['code']} has expired")
 
     discount = subtotal_cents * percent // 100
